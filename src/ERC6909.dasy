@@ -1,0 +1,50 @@
+(defevent Transfer
+    sender (indexed :address)
+    receiver (indexed :address)
+    id (indexed :uint256)
+    amount :uint256)
+
+(defevent OperatorSet
+    owner (indexed :address)
+    spender (indexed :address)
+    approved :bool)
+
+(defevent Approval
+    sender (indexed :address)
+    spender (indexed :address)
+    id (indexed :uint256)
+    amount :uint256)
+
+(defvars
+    totalSupply (public (hash-map :uint256 :uint256))
+    balanceOf (public (hash-map :address (hash-map :uint256 :uint256)))
+    allowance (public (hash-map :address (hash-map :address (hash-map :uint256 :uint256))))
+    isOperator (public (hash-map :address (hash-map :address :bool))))
+
+(defn supportsInterface [:bytes4 interfaceId] :bool [:external :pure]
+    (or (== interfaceId 0xb2e69f8a) (== interfaceId 0x01ffc9a7)))
+
+(defn mint [:address receiver :uint256 id :uint256 amount] :external
+    (doto (get-at self/balanceOf receiver id) (+= amount))
+    (doto (get-at self/totalSupply id) (+= amount))
+    (log (Transfer (empty address) receiver id amount)))
+
+(defn transfer [:address receiver :uint256 id :uint256 amount] :external
+    (doto (get-at self/balanceOf msg/sender id) (-= amount))
+    (doto (get-at self/balanceOf receiver id) (+= amount))
+    (log (Transfer msg/sender receiver id amount)))
+
+(defn transferFrom [:address sender :address receiver :uint256 id :uint256 amount] :external
+    (if (and (not (get-at self/isOperator sender msg/sender)) (!= msg/sender sender))
+        (doto (get-at self/allowance sender msg/sender id) (-= amount)))
+    (doto (get-at self/balanceOf sender id) (-= amount))
+    (doto (get-at self/balanceOf receiver id) (+= amount))
+    (log (Transfer sender receiver id amount)))
+
+(defn approve [:address spender :uint256 id :uint256 amount] :external
+    (set-at self/allowance msg/sender spender id amount)
+    (log (Approval msg/sender spender id amount)))
+
+(defn setOperator [:address spender :bool approved] :external
+    (set-at self/isOperator msg/sender spender approved)
+    (log (OperatorSet msg/sender spender approved)))
